@@ -5,7 +5,7 @@ regex
 scikit-learn>=1.0.2
 seqeval==1.2.2
 tensorflow==2.8.0
-tensorflow-addons==1.16.1
+tensorflow-addons
 tf2crf==0.1.24
 tokenizers==0.12.1
 tqdm

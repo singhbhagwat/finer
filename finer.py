@@ -448,6 +448,9 @@ class FINER:
     def train(self):
 
         train_dataset = datasets.load_dataset(path='nlpaueb/finer-139', split='train')
+        if self.train_params['train_percent'] != None:
+            train_len = int(len(train_dataset)*self.train_params['train_percent'])
+            train_dataset = train_dataset.select(list(np.arange(train_len)))
         train_generator = DataLoader(
             dataset=train_dataset,
             vectorize_fn=self.vectorize,

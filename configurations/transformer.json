@@ -1,10 +1,11 @@
 {
     "train_parameters": {
-        "model_name": "nlpaueb/sec-bert-base",
+        "model_name": "nlpaueb/sec-bert-shape",
         "max_length": 200,
-        "replace_numeric_values": null,
+        "replace_numeric_values": true,
         "subword_pooling": "all",
-        "use_fast_tokenizer": true
+        "use_fast_tokenizer": true,
+        "train_percent": 0.01
     },
     "general_parameters": {
         "debug": false,
@@ -12,14 +13,14 @@
         "early_stopping_patience": 5,
         "reduce_lr_patience": 2,
         "reduce_lr_cooldown": 2,
-        "epochs": 20,
+        "epochs": 2,
         "batch_size": 16,
         "workers": 10,
         "max_queue_size": 100,
-        "use_multiprocessing": true,
+        "use_multiprocessing": false,
         "run_eagerly": false,
-        "wandb_entity": null,
-        "wandb_project": null
+        "wandb_entity": "singhbhagwat82",
+        "wandb_project": "NER1"
     },
     "hyper_parameters": {
         "learning_rate": 1e-5,

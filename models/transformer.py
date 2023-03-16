@@ -24,7 +24,7 @@ class Transformer(tf.keras.Model):
         self.subword_pooling = subword_pooling
 
         self.encoder = TFAutoModel.from_pretrained(
-            pretrained_model_name_or_path=model_name
+            pretrained_model_name_or_path=model_name, output_hidden_states = True
         )
         if tokenizer:
             self.encoder.resize_token_embeddings(
@@ -49,6 +49,8 @@ class Transformer(tf.keras.Model):
             pooling_mask = inputs[1]
             inputs = inputs[0]
 
+        test_001_output = self.encoder(inputs)
+        
         encodings = self.encoder(inputs)[0]
         encodings = tf.keras.layers.SpatialDropout1D(
             rate=self.dropout_rate
