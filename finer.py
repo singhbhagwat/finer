@@ -447,9 +447,13 @@ class FINER:
 
     def train(self):
 
+        ablation_percent = 0
+        if self.train_params['ablation_percent'] != None:
+            ablation_percent = self.train_params['ablation_percent']
+
         train_dataset = datasets.load_dataset(path='nlpaueb/finer-139', split='train')
-        if self.train_params['train_percent'] != None:
-            train_len = int(len(train_dataset)*self.train_params['train_percent'])
+        if ablation_percent > 0:
+            train_len = int(len(train_dataset)*ablation_percent)
             train_dataset = train_dataset.select(list(np.arange(train_len)))
         train_generator = DataLoader(
             dataset=train_dataset,
@@ -460,6 +464,9 @@ class FINER:
         )
 
         validation_dataset = datasets.load_dataset(path='nlpaueb/finer-139', split='validation')
+        if ablation_percent > 0:
+            validation_len = int(len(validation_dataset)*ablation_percent)
+            validation_dataset = validation_dataset.select(list(np.arange(validation_len)))
         validation_generator = DataLoader(
             dataset=validation_dataset,
             vectorize_fn=self.vectorize,
@@ -469,6 +476,9 @@ class FINER:
         )
 
         test_dataset = datasets.load_dataset(path='nlpaueb/finer-139', split='test')
+        if ablation_percent > 0:
+            test_len = int(len(test_dataset)*ablation_percent)
+            test_dataset = test_dataset.select(list(np.arange(test_len)))
         test_generator = DataLoader(
             dataset=test_dataset,
             vectorize_fn=self.vectorize,
@@ -569,7 +579,7 @@ class FINER:
             WandbCallback(
                 monitor=monitor,
                 mode=monitor_mode,
-
+                save_weights_only=True
             )
         )
 
