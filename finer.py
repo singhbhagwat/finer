@@ -22,6 +22,10 @@ from data import DATA_DIR, VECTORS_DIR
 from models import BiLSTM, Transformer, TransformerBiLSTM
 from models.callbacks import ReturnBestEarlyStopping, F1MetricCallback
 
+# Set Seeds for reproducibility
+np.random.seed(1)
+tf.set_random_seed(2)
+
 LOGGER = logging.getLogger(__name__)
 
 
@@ -448,13 +452,17 @@ class FINER:
     def train(self):
 
         ablation_percent = 0
+        train_len_ablated = 0
+        validation_len_ablated = 0
+        test_len_ablated = 0
+        
         if self.train_params['ablation_percent'] != None:
             ablation_percent = self.train_params['ablation_percent']
 
         train_dataset = datasets.load_dataset(path='nlpaueb/finer-139', split='train')
         if ablation_percent > 0:
-            train_len = int(len(train_dataset)*ablation_percent)
-            train_dataset = train_dataset.select(list(np.arange(train_len)))
+            train_len_ablated = int(len(train_dataset)*ablation_percent)
+            train_dataset = train_dataset.select(list(np.choice(len(train_dataset), train_len_ablated, replacement = False )))
         train_generator = DataLoader(
             dataset=train_dataset,
             vectorize_fn=self.vectorize,
@@ -465,8 +473,8 @@ class FINER:
 
         validation_dataset = datasets.load_dataset(path='nlpaueb/finer-139', split='validation')
         if ablation_percent > 0:
-            validation_len = int(len(validation_dataset)*ablation_percent)
-            validation_dataset = validation_dataset.select(list(np.arange(validation_len)))
+            validation_len_ablated = int(len(validation_dataset)*ablation_percent)
+            validation_dataset = validation_dataset.select(list(np.choice(len(validation_dataset), validation_len_ablated, replacement = False )))
         validation_generator = DataLoader(
             dataset=validation_dataset,
             vectorize_fn=self.vectorize,
@@ -477,8 +485,8 @@ class FINER:
 
         test_dataset = datasets.load_dataset(path='nlpaueb/finer-139', split='test')
         if ablation_percent > 0:
-            test_len = int(len(test_dataset)*ablation_percent)
-            test_dataset = test_dataset.select(list(np.arange(test_len)))
+            test_len_ablated = int(len(test_dataset)*ablation_percent)
+            test_dataset = test_dataset.select(list(np.choice(len(test_dataset), test_len_ablated, replacement = False )))
         test_generator = DataLoader(
             dataset=test_dataset,
             vectorize_fn=self.vectorize,
