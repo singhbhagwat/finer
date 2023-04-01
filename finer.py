@@ -462,7 +462,7 @@ class FINER:
         train_dataset = datasets.load_dataset(path='nlpaueb/finer-139', split='train')
         if ablation_percent > 0:
             train_len_ablated = int(len(train_dataset)*ablation_percent)
-            train_dataset = train_dataset.select(list(np.choice(len(train_dataset), train_len_ablated, replacement = False )))
+            train_dataset = train_dataset.select(list(np.random.choice(len(train_dataset), train_len_ablated, replacement = False )))
         train_generator = DataLoader(
             dataset=train_dataset,
             vectorize_fn=self.vectorize,
@@ -474,7 +474,7 @@ class FINER:
         validation_dataset = datasets.load_dataset(path='nlpaueb/finer-139', split='validation')
         if ablation_percent > 0:
             validation_len_ablated = int(len(validation_dataset)*ablation_percent)
-            validation_dataset = validation_dataset.select(list(np.choice(len(validation_dataset), validation_len_ablated, replacement = False )))
+            validation_dataset = validation_dataset.select(list(np.random.choice(len(validation_dataset), validation_len_ablated, replacement = False )))
         validation_generator = DataLoader(
             dataset=validation_dataset,
             vectorize_fn=self.vectorize,
@@ -486,7 +486,7 @@ class FINER:
         test_dataset = datasets.load_dataset(path='nlpaueb/finer-139', split='test')
         if ablation_percent > 0:
             test_len_ablated = int(len(test_dataset)*ablation_percent)
-            test_dataset = test_dataset.select(list(np.choice(len(test_dataset), test_len_ablated, replacement = False )))
+            test_dataset = test_dataset.select(list(np.random.choice(len(test_dataset), test_len_ablated, replacement = False )))
         test_generator = DataLoader(
             dataset=test_dataset,
             vectorize_fn=self.vectorize,
