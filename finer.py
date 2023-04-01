@@ -24,7 +24,7 @@ from models.callbacks import ReturnBestEarlyStopping, F1MetricCallback
 
 # Set Seeds for reproducibility
 np.random.seed(1)
-tf.set_random_seed(2)
+tf.random.set_seed(2)
 
 LOGGER = logging.getLogger(__name__)
 
