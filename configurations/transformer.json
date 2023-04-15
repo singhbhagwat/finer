@@ -13,7 +13,7 @@
         "early_stopping_patience": 5,
         "reduce_lr_patience": 2,
         "reduce_lr_cooldown": 2,
-        "epochs": 12,
+        "epochs": 18,
         "batch_size": 16,
         "workers": 10,
         "max_queue_size": 100,
