@@ -9,11 +9,11 @@
     },
     "general_parameters": {
         "debug": false,
-        "loss_monitor": "val_macro_f1",
+        "loss_monitor": "val_loss",
         "early_stopping_patience": 5,
         "reduce_lr_patience": 2,
         "reduce_lr_cooldown": 2,
-        "epochs": 19,
+        "epochs": 20,
         "batch_size": 16,
         "workers": 10,
         "max_queue_size": 100,
