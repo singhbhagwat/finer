@@ -9,7 +9,7 @@
     },
     "general_parameters": {
         "debug": false,
-        "loss_monitor": "val_loss",
+        "loss_monitor": "val_macro_f1",
         "early_stopping_patience": 4,
         "reduce_lr_patience": 1,
         "reduce_lr_cooldown": 1,
