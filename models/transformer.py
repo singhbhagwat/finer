@@ -4,12 +4,13 @@ from transformers import AutoTokenizer, TFAutoModel
 
 from tf2crf import CRF
 
-
 class Transformer(tf.keras.Model):
     def __init__(
             self,
             model_name,
             n_classes,
+            ## Bhagwat
+            n_classes_level1,
             dropout_rate=0.1,
             crf=False,
             tokenizer=None,
@@ -19,6 +20,10 @@ class Transformer(tf.keras.Model):
 
         self.model_name = model_name
         self.n_classes = n_classes
+        
+        # Level 1 classes
+        self.n_classes_level1 = n_classes_level1
+
         self.dropout_rate = dropout_rate
         self.crf = crf
         self.subword_pooling = subword_pooling
@@ -38,6 +43,13 @@ class Transformer(tf.keras.Model):
             # Pass logits to a custom CRF Layer
             self.crf_layer = CRF(output_dim=n_classes, mask=True)
         else:
+            
+            # Level 1 Classifier
+            self.classifier_level1 = tf.keras.layers.Dense(
+                units=n_classes_level1,
+                activation='softmax'
+            )
+
             self.classifier = tf.keras.layers.Dense(
                 units=n_classes,
                 activation='softmax'
@@ -49,14 +61,20 @@ class Transformer(tf.keras.Model):
             pooling_mask = inputs[1]
             inputs = inputs[0]
 
-        test_001_output = self.encoder(inputs)
+        ## test_001_output = self.encoder(inputs) ##Bhagwat
         
         encodings = self.encoder(inputs)[0]
         encodings = tf.keras.layers.SpatialDropout1D(
             rate=self.dropout_rate
         )(encodings, training=training)
 
-        outputs = self.classifier(encodings)
+        # Task 1 Network
+        outputs_level1 = self.classifier_level1(encodings)
+
+        # Task 2 / Final network
+        inputs_level2 = tf.keras.layers.Concatenate()([encodings, outputs_level1])
+        ## outputs = self.classifier(encodings) # Bhagwat
+        outputs = self.classifier(inputs_level2)
 
         if self.crf:
             outputs = self.crf_layer(outputs, mask=tf.not_equal(inputs, 0))
@@ -64,7 +82,7 @@ class Transformer(tf.keras.Model):
         if self.subword_pooling in ['first', 'last']:
             outputs = tf.cast(tf.expand_dims(pooling_mask, axis=-1), dtype=tf.float32) * outputs
 
-        return outputs
+        return outputs_level1, outputs
 
     def print_summary(self, line_length=None, positions=None, print_fn=None):
         # Fake forward pass to build graph
@@ -86,14 +104,17 @@ if __name__ == '__main__':
     np.random.seed(1)
     tf.random.set_seed(1)
 
-    model_name = 'nlpaueb/sec-bert-base'
+    ## model_name = 'nlpaueb/sec-bert-base' # bhagwat
+    model_name = 'nlpaueb/sec-bert-shape'
 
     # Build test model
     model = Transformer(
         model_name=model_name,
         n_classes=10,
+        # Bhagwat 
+        n_classes_level1=5,
         dropout_rate=0.2,
-        crf=True,
+        crf=False,
         tokenizer=None,
         subword_pooling='all'
     )
@@ -119,6 +140,9 @@ if __name__ == '__main__':
         return_tensors='tf'
     ).input_ids
 
+    ## Bhagwat
+    outputs_level1 = pad_sequences(np.random.randint(0, 5, (5, 32)), maxlen=64, padding='post', truncating='post')
+
     outputs = pad_sequences(np.random.randint(0, 10, (5, 32)), maxlen=64, padding='post', truncating='post')
 
     optimizer = tf.keras.optimizers.Adam(learning_rate=1e-5, clipvalue=5.0)
@@ -138,7 +162,9 @@ if __name__ == '__main__':
 
     print(model.print_summary(line_length=150))
 
-    model.fit(x=inputs, y=outputs, batch_size=2)
+    ## model.fit(x=inputs, y=outputs, batch_size=2) # Bhagwat
+    model.fit(x=inputs, y=[outputs_level1, outputs], batch_size=2)
+
     model.predict(inputs, batch_size=1)
     predictions = model.predict(inputs, batch_size=2)
     print(predictions)
