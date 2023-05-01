@@ -31,8 +31,12 @@ LOGGER = logging.getLogger(__name__)
 
 class DataLoader(tf.keras.utils.Sequence):
 
-    def __init__(self, dataset, vectorize_fn, batch_size=8, max_length=128, shuffle=False):
-        self.dataset = dataset
+    def __init__(self, dataset, ablated_index, vectorize_fn, batch_size=8, max_length=128, shuffle=False):
+        
+        ## Bhagwat
+        self.ablated_index = ablated_index
+        self.dataset = dataset.select(self.ablated_index)
+
         self.vectorize_fn = vectorize_fn
         self.batch_size = batch_size
         if Configuration['general_parameters']['debug']:
@@ -55,8 +59,8 @@ class DataLoader(tf.keras.utils.Sequence):
         # Find list of batch's sequences + targets
         samples = self.dataset[indices]
 
-        x_batch, y_batch = self.vectorize_fn(samples=samples, max_length=self.max_length)
-        return x_batch, y_batch
+        x_batch, y_batch_level1, y_batch = self.vectorize_fn(samples=samples, max_length=self.max_length)
+        return x_batch, y_batch_level1, y_batch
 
     def on_epoch_end(self):
         """Updates indexes after each epoch"""
@@ -70,8 +74,14 @@ class FINER:
         self.train_params = Configuration['train_parameters']
         self.hyper_params = Configuration['hyper_parameters']
         self.eval_params = Configuration['evaluation']
-        self.tag2idx, self.idx2tag = FINER.load_dataset_tags()
+        
+        ## Bhagwat
+        self.tag2idx, self.idx2tag, self.tag2idx_rq1, self.idx2tag_rq1, self.rq1_tag2idx, self.rq1_idx2tag = FINER.load_dataset_tags()
+        
         self.n_classes = len(self.tag2idx)
+
+        ## Bhagwat
+        self.n_classes_level1 = len(self.tag2idx_rq1)
 
         if Configuration['task']['mode'] == 'train':
             display_name = Configuration['task']['log_name']
@@ -184,7 +194,28 @@ class FINER:
         tag2idx = {tag: int(i) for i, tag in enumerate(dataset_tags)}
         idx2tag = {idx: tag for tag, idx in tag2idx.items()}
 
-        return tag2idx, idx2tag
+        ## Bhagwat - Overlay rierarchy tags
+        rq1_preprocess = pd.read_excel("RQ1_Preprocess.xlsx")
+        rq1_tag_changes = rq1_preprocess.loc[rq1_preprocess.ParentLabelSame == 'No', ['Entity Label', 'Parent Label', 'B-ParentTagId', 'I-ParentTagId']]
+        
+        rq1_tag_changes.loc[:, 'B-Entity-Label'] = rq1_tag_changes.loc[:, 'Entity Label'].apply(lambda l: 'B-'+l)
+        rq1_tag_changes.loc[:, 'I-Entity-Label'] = rq1_tag_changes.loc[:, 'Entity Label'].apply(lambda l: 'I-'+l)
+        rq1_tag_changes.loc[:, 'B-ParentTagId'] = rq1_tag_changes.loc[:, 'B-ParentTagId'].astype(int)
+        rq1_tag_changes.loc[:, 'I-ParentTagId'] = rq1_tag_changes.loc[:, 'I-ParentTagId'].astype(int)
+        rq1_B_tag2idx = dict(zip(list(rq1_tag_changes.loc[:, 'B-Entity-Label']), list(rq1_tag_changes.loc[:, 'B-ParentTagId'])))
+        rq1_I_tag2idx = dict(zip(list(rq1_tag_changes.loc[:, 'I-Entity-Label']), list(rq1_tag_changes.loc[:, 'I-ParentTagId'])))
+        rq1_tag2idx = rq1_B_tag2idx | rq1_I_tag2idx
+        rq1_idx2tag = {rq1_tag2idx[k]:k for k in rq1_tag2idx}
+
+        rq1_tag_changes.loc[:, 'B-Parent-Label'] = rq1_tag_changes.loc[:, 'Parent Label'].apply(lambda l: 'B-'+l)
+        rq1_tag_changes.loc[:, 'I-Parent-Label'] = rq1_tag_changes.loc[:, 'Parent Label'].apply(lambda l: 'I-'+l)
+        B_tag2idx_rq1 = dict(zip(list(rq1_tag_changes.loc[:, 'B-Parent-Label']), list(rq1_tag_changes.loc[:, 'B-ParentTagId'])))
+        I_tag2idx_rq1 = dict(zip(list(rq1_tag_changes.loc[:, 'I-Parent-Label']), list(rq1_tag_changes.loc[:, 'I-ParentTagId'])))
+        tag2idx_rq1 = B_tag2idx_rq1 | I_tag2idx_rq1
+        tag2idx_rq1.update({k: tag2idx[k] for k in tag2idx if k not in rq1_tag2idx})
+        idx2tag_rq1 = {tag2idx_rq1[k]:k for k in tag2idx_rq1}
+
+        return tag2idx, idx2tag, tag2idx_rq1, idx2tag_rq1, rq1_tag2idx, rq1_idx2tag
 
     def is_numeric_value(self, text):
         digits, non_digits = 0, 0
@@ -390,6 +421,21 @@ class FINER:
             if Configuration['task']['model'] == 'transformer':
                 y[np.where(x[:, -1] != PAD_ID)[0], -1] = 0
 
+            ## Task 2 network outputs changes
+            batch_tags_rq1 = [[self.rq1_tag2idx[tag] for tag in sample_tags] for sample_tags in batch_tags]
+
+            # Pad/Truncate the rest tags/labels
+            y_level1 = pad_sequences(
+                sequences=batch_tags_rq1,
+                maxlen=max_length,
+                padding='post',
+                truncating='post'
+            )
+
+            if Configuration['task']['model'] == 'transformer':
+                y_level1[np.where(x[:, -1] != PAD_ID)[0], -1] = 0
+
+
         if self.train_params['subword_pooling'] in ['first', 'last']:
             batch_subword_pooling_mask = pad_sequences(
                 sequences=batch_subword_pooling_mask,
@@ -400,7 +446,7 @@ class FINER:
 
             return [np.array(x), batch_subword_pooling_mask], y
         else:
-            return np.array(x), y
+            return np.array(x), y_level1, y
 
     def build_model(self, train_params=None):
         if Configuration['task']['model'] == 'bilstm':
@@ -417,6 +463,10 @@ class FINER:
             model = Transformer(
                 model_name=train_params['model_name'],
                 n_classes=self.n_classes,
+                
+                ## Bhagwat
+                n_classes_level1 = self.n_classes_level1,
+
                 dropout_rate=train_params['dropout_rate'],
                 crf=train_params['crf'],
                 tokenizer=self.tokenizer if self.train_params['replace_numeric_values'] else None,
@@ -455,16 +505,25 @@ class FINER:
         train_len_ablated = 0
         validation_len_ablated = 0
         test_len_ablated = 0
-        
+
         if self.train_params['ablation_percent'] != None:
             ablation_percent = self.train_params['ablation_percent']
 
         train_dataset = datasets.load_dataset(path='nlpaueb/finer-139', split='train')
+        
+        ablated_index = np.arange(len(train_dataset))
         if ablation_percent > 0:
             train_len_ablated = int(len(train_dataset)*ablation_percent)
-            train_dataset = train_dataset.select(list(np.random.choice(len(train_dataset), train_len_ablated, replace = False )))
+
+            ## Bhagwat
+            ablated_index = list(np.random.choice(len(train_dataset), train_len_ablated, replace = False ))
+
         train_generator = DataLoader(
             dataset=train_dataset,
+            
+            ## Bhagwat
+            ablated_index = ablated_index,
+
             vectorize_fn=self.vectorize,
             batch_size=self.general_params['batch_size'],
             max_length=self.train_params['max_length'],
@@ -472,11 +531,19 @@ class FINER:
         )
 
         validation_dataset = datasets.load_dataset(path='nlpaueb/finer-139', split='validation')
+
+        ablated_index = np.arange(len(validation_dataset))
         if ablation_percent > 0:
             validation_len_ablated = int(len(validation_dataset)*ablation_percent)
-            validation_dataset = validation_dataset.select(list(np.random.choice(len(validation_dataset), validation_len_ablated, replace = False )))
+            
+            ablated_index = list(np.random.choice(len(validation_dataset), validation_len_ablated, replace = False ))
+                    
         validation_generator = DataLoader(
             dataset=validation_dataset,
+            
+            ## Bhagwat
+            ablated_index = ablated_index,
+
             vectorize_fn=self.vectorize,
             batch_size=self.general_params['batch_size'],
             max_length=self.train_params['max_length'],
@@ -484,11 +551,19 @@ class FINER:
         )
 
         test_dataset = datasets.load_dataset(path='nlpaueb/finer-139', split='test')
+
+        ablated_index = np.arange(len(test_dataset))
         if ablation_percent > 0:
             test_len_ablated = int(len(test_dataset)*ablation_percent)
-            test_dataset = test_dataset.select(list(np.random.choice(len(test_dataset), test_len_ablated, replace = False )))
+
+            ablated_index = list(np.random.choice(len(test_dataset), test_len_ablated, replace = False ))
+
         test_generator = DataLoader(
             dataset=test_dataset,
+            
+            ## Bhagwat
+            ablated_index = ablated_index,
+
             vectorize_fn=self.vectorize,
             batch_size=self.general_params['batch_size'],
             max_length=self.train_params['max_length'],
@@ -526,6 +601,7 @@ class FINER:
         f1_metric = F1MetricCallback(
             train_params=train_params,
             idx2tag=self.idx2tag,
+            idx2tag_rq1=self.idx2tag_rq1,
             validation_generator=validation_generator,
             subword_pooling=self.train_params['subword_pooling'],
             calculate_train_metric=False
@@ -633,9 +709,9 @@ class FINER:
         LOGGER.info(f'\n{split_type.capitalize()} Evaluation\n{"-" * 30}\n')
         LOGGER.info('Calculating predictions...')
 
-        y_true, y_pred = [], []
+        y_true_level1, y_true, y_pred_level1, y_pred = [], [], []
 
-        for x_batch, y_batch in tqdm(generator, ncols=100):
+        for x_batch, y_batch_level1, y_batch in tqdm(generator, ncols=100):
 
             if self.train_params['subword_pooling'] in ['first', 'last']:
                 pooling_mask = x_batch[1]
@@ -643,7 +719,7 @@ class FINER:
                 y_prob_temp = model.predict(x=[x_batch, pooling_mask])
             else:
                 pooling_mask = x_batch
-                y_prob_temp = model.predict(x=x_batch)
+                y_prob_temp_level1, y_prob_temp = model.predict(x=x_batch)
 
             # Get lengths and cut results for padded tokens
             lengths = [len(np.where(x_i != 0)[0]) for x_i in x_batch]
@@ -652,8 +728,9 @@ class FINER:
                 y_pred_temp = y_prob_temp.astype('int32')
             else:
                 y_pred_temp = np.argmax(y_prob_temp, axis=-1)
+                y_pred_temp_level1 = np.argmax(y_prob_temp_level1, axis=-1)
 
-            for y_true_i, y_pred_i, l_i, p_i in zip(y_batch, y_pred_temp, lengths, pooling_mask):
+            for y_true_i_level1, y_true_i, y_pred_i_level1, y_pred_i, l_i, p_i in zip(y_batch_level1, y_batch, y_pred_temp_level1, y_pred_temp, lengths, pooling_mask):
 
                 if Configuration['task']['model'] == 'transformer':
                     if self.train_params['subword_pooling'] in ['first', 'last']:
@@ -661,7 +738,9 @@ class FINER:
                         y_pred.append(np.take(y_pred_i, np.where(p_i != 0)[0])[1:-1])
                     else:
                         y_true.append(y_true_i[1:l_i - 1])
+                        y_true_level1.append(y_true_i_level1[1:l_i - 1])
                         y_pred.append(y_pred_i[1:l_i - 1])
+                        y_pred_level1.append(y_pred_i_level1[1:l_i - 1])
 
                 elif Configuration['task']['model'] == 'bilstm':
                     if self.train_params['subword_pooling'] in ['first', 'last']:
@@ -695,6 +774,33 @@ class FINER:
             scheme=IOB2
         )
         LOGGER.info(cr)
+
+        ## For Task 1 Network
+       
+        seq_y_pred_level1_str = []
+        seq_y_true_level1_str = []        
+
+        for y_pred_level1_row, y_true_level1_row in zip(y_pred_level1, y_true_level1):  # For each sequence
+            seq_y_pred_level1_str.append(
+                [self.idx2tag_rq1[idx] for idx in y_pred_level1_row.tolist()])  # Append list with sequence tokens
+            seq_y_true_level1_str.append(
+                [self.idx2tag_rq1[idx] for idx in y_true_level1_row.tolist()])  # Append list with sequence tokens
+
+        flattened_seq_y_pred_level1_str = list(itertools.chain.from_iterable(seq_y_pred_level1_str))
+        flattened_seq_y_true_level1_str = list(itertools.chain.from_iterable(seq_y_true_level1_str))
+        assert len(flattened_seq_y_true_level1_str) == len(flattened_seq_y_pred_level1_str)
+
+        # TODO: Check mode (strict, not strict) and scheme
+        cr_level1 = classification_report(
+            y_true=[flattened_seq_y_true_level1_str],
+            y_pred=[flattened_seq_y_pred_level1_str],
+            zero_division=0,
+            mode=None,
+            digits=3,
+            scheme=IOB2
+        )
+        LOGGER.info(cr_level1)
+
 
     def evaluate_pretrained_model(self):
 
