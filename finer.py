@@ -22,6 +22,8 @@ from data import DATA_DIR, VECTORS_DIR
 from models import BiLSTM, Transformer, TransformerBiLSTM
 from models.callbacks import ReturnBestEarlyStopping, F1MetricCallback
 
+import pandas as pd
+
 # Set Seeds for reproducibility
 np.random.seed(1)
 tf.random.set_seed(2)
