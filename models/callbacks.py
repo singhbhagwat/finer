@@ -61,7 +61,7 @@ class F1MetricCallback(Callback):
             logs = {}
         if self.calculate_train_metric:
             train_micro_precision_level1, train_micro_recall_level1, train_micro_f1_level1, \
-            train_macro_precision_level1, train_macro_recall_level1, train_macro_f1_level1, train_support_level1, = \
+            train_macro_precision_level1, train_macro_recall_level1, train_macro_f1_level1, train_support_level1, \
             train_micro_precision, train_micro_recall, train_micro_f1, \
             train_macro_precision, train_macro_recall, train_macro_f1, train_support = \
                 self.evaluate(generator=self.train_generator)
@@ -83,7 +83,7 @@ class F1MetricCallback(Callback):
             logs[f'support'] = train_support
 
         val_micro_precision_level1, val_micro_recall_level1, val_micro_f1_level1, \
-        val_macro_precision_level1, val_macro_recall_level1, val_macro_f1_level1, val_support_level1, = \
+        val_macro_precision_level1, val_macro_recall_level1, val_macro_f1_level1, val_support_level1, \
         val_micro_precision, val_micro_recall, val_micro_f1, \
         val_macro_precision, val_macro_recall, val_macro_f1, val_support = \
             self.evaluate(generator=self.validation_generator)
