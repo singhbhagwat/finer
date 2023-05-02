@@ -44,7 +44,7 @@ class DataLoader(tf.keras.utils.Sequence):
         if Configuration['general_parameters']['debug']:
             self.indices = np.arange(100)
         else:
-            self.indices = np.arange(len(dataset))
+            self.indices = np.arange(len(self.dataset))
         self.max_length = max_length
         self.shuffle = shuffle
         if self.shuffle:
