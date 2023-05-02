@@ -589,7 +589,8 @@ class FINER:
         else:
             model.compile(
                 optimizer=optimizer,
-                loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=False),
+                loss=[tf.keras.losses.SparseCategoricalCrossentropy(from_logits=False),tf.keras.losses.SparseCategoricalCrossentropy(from_logits=False)],
+                loss_weights = [0.5,0.5],
                 run_eagerly=self.general_params['run_eagerly']
             )
 
