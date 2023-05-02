@@ -410,6 +410,9 @@ class FINER:
         elif Configuration['task']['model'] == 'transformer' \
                 or (Configuration['task']['model'] == 'bilstm' and self.train_params['token_type'] == 'subword'):
 
+            ## Task 1 network changes
+            batch_tags_rq1 = [[self.rq1_tag2idx[tag] if (tag in self.rq1_tag2idx) else self.tag2idx[tag] for tag in sample_tags] for sample_tags in batch_tags]
+
             batch_tags = [[self.tag2idx[tag] for tag in sample_tags] for sample_tags in batch_tags]
 
             # Pad/Truncate the rest tags/labels
@@ -420,12 +423,6 @@ class FINER:
                 truncating='post'
             )
 
-            if Configuration['task']['model'] == 'transformer':
-                y[np.where(x[:, -1] != PAD_ID)[0], -1] = 0
-
-            ## Task 2 network outputs changes
-            batch_tags_rq1 = [[self.rq1_tag2idx[tag] for tag in sample_tags] for sample_tags in batch_tags]
-
             # Pad/Truncate the rest tags/labels
             y_level1 = pad_sequences(
                 sequences=batch_tags_rq1,
@@ -435,6 +432,7 @@ class FINER:
             )
 
             if Configuration['task']['model'] == 'transformer':
+                y[np.where(x[:, -1] != PAD_ID)[0], -1] = 0
                 y_level1[np.where(x[:, -1] != PAD_ID)[0], -1] = 0
 
 
