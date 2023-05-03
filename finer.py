@@ -62,7 +62,7 @@ class DataLoader(tf.keras.utils.Sequence):
         samples = self.dataset[indices]
 
         x_batch, y_batch_level1, y_batch = self.vectorize_fn(samples=samples, max_length=self.max_length)
-        return x_batch, y_batch_level1, y_batch
+        return x_batch, [y_batch_level1, y_batch]
 
     def on_epoch_end(self):
         """Updates indexes after each epoch"""
