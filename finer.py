@@ -780,7 +780,6 @@ class FINER:
             digits=3,
             scheme=IOB2
         )
-        LOGGER.info(cr)
 
         ## For Task 1 Network
        
@@ -806,7 +805,9 @@ class FINER:
             digits=3,
             scheme=IOB2
         )
+        
         LOGGER.info(cr_level1)
+        LOGGER.info(cr)
 
 
     def evaluate_pretrained_model(self):
