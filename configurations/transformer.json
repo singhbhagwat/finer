@@ -5,7 +5,7 @@
         "replace_numeric_values": "SHAPE",
         "subword_pooling": "all",
         "use_fast_tokenizer": true,
-        "ablation_percent": 0.01
+        "ablation_percent": 0.0625
     },
     "general_parameters": {
         "debug": false,
@@ -13,7 +13,7 @@
         "early_stopping_patience": 4,
         "reduce_lr_patience": 1,
         "reduce_lr_cooldown": 1,
-        "epochs": 5,
+        "epochs": 11,
         "batch_size": 16,
         "workers": 10,
         "max_queue_size": 100,
