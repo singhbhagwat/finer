@@ -716,9 +716,9 @@ class FINER:
         LOGGER.info(f'\n{split_type.capitalize()} Evaluation\n{"-" * 30}\n')
         LOGGER.info('Calculating predictions...')
 
-        y_true_level1, y_true, y_pred_level1, y_pred = [], [], []
+        y_true_level1, y_true, y_pred_level1, y_pred = [], [], [], []
 
-        for x_batch, y_batch_level1, y_batch in tqdm(generator, ncols=100):
+        for x_batch, [y_batch_level1, y_batch] in tqdm(generator, ncols=100):
 
             if self.train_params['subword_pooling'] in ['first', 'last']:
                 pooling_mask = x_batch[1]
