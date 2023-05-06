@@ -107,7 +107,7 @@ class F1MetricCallback(Callback):
     def evaluate(self, generator):
 
         y_true_level1, y_true, y_pred_level1, y_pred = [], [], [], []
-        for x_batch, y_batch_level1, y_batch in tqdm(generator, ncols=100):
+        for x_batch, [y_batch_level1, y_batch] in tqdm(generator, ncols=100):
 
             if self.subword_pooling in ['first', 'last']:
                 pooling_mask = x_batch[1]
