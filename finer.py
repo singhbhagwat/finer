@@ -78,7 +78,7 @@ class FINER:
         self.eval_params = Configuration['evaluation']
         
         ## Bhagwat
-        self.tag2idx, self.idx2tag, self.tag2idx_rq1, self.idx2tag_rq1, self.rq1_tag2idx, self.rq1_idx2tag = FINER.load_dataset_tags()
+        self.tag2idx, self.idx2tag, self.tag2idx_rq1, self.idx2tag_rq1, self.rq1_tag2idx = FINER.load_dataset_tags()
         
         self.n_classes = len(self.tag2idx)
 
@@ -196,28 +196,34 @@ class FINER:
         tag2idx = {tag: int(i) for i, tag in enumerate(dataset_tags)}
         idx2tag = {idx: tag for tag, idx in tag2idx.items()}
 
-        ## Bhagwat - Overlay rierarchy tags
+        ## Bhagwat - Overlay hierarchy tags, make dictionay to change existing labels for outpt level 1
         rq1_preprocess = pd.read_excel("RQ1_Preprocess.xlsx")
-        rq1_tag_changes = rq1_preprocess.loc[rq1_preprocess.ParentLabelSame == 'No', ['Entity Label', 'Parent Label', 'B-ParentTagId', 'I-ParentTagId']]
+        # bhagwat rq1_tag_changes = rq1_preprocess.loc[rq1_preprocess.ParentLabelSame == 'No', ['Entity Label', 'Parent Label', 'B-ParentTagId', 'I-ParentTagId']]
         
-        rq1_tag_changes.loc[:, 'B-Entity-Label'] = rq1_tag_changes.loc[:, 'Entity Label'].apply(lambda l: 'B-'+l)
-        rq1_tag_changes.loc[:, 'I-Entity-Label'] = rq1_tag_changes.loc[:, 'Entity Label'].apply(lambda l: 'I-'+l)
-        rq1_tag_changes.loc[:, 'B-ParentTagId'] = rq1_tag_changes.loc[:, 'B-ParentTagId'].astype(int)
-        rq1_tag_changes.loc[:, 'I-ParentTagId'] = rq1_tag_changes.loc[:, 'I-ParentTagId'].astype(int)
-        rq1_B_tag2idx = dict(zip(list(rq1_tag_changes.loc[:, 'B-Entity-Label']), list(rq1_tag_changes.loc[:, 'B-ParentTagId'])))
-        rq1_I_tag2idx = dict(zip(list(rq1_tag_changes.loc[:, 'I-Entity-Label']), list(rq1_tag_changes.loc[:, 'I-ParentTagId'])))
+        rq1_preprocess.loc[:, 'B-Entity-Label'] = rq1_preprocess.loc[:, 'Entity Label'].apply(lambda l: 'B-'+l)
+        rq1_preprocess.loc[:, 'I-Entity-Label'] = rq1_preprocess.loc[:, 'Entity Label'].apply(lambda l: 'I-'+l)
+        rq1_preprocess.loc[:, 'B-ParentTagId'] = rq1_preprocess.loc[:, 'B-ParentTagId'].astype(int)
+        rq1_preprocess.loc[:, 'I-ParentTagId'] = rq1_preprocess.loc[:, 'I-ParentTagId'].astype(int)
+        rq1_B_tag2idx = dict(zip(list(rq1_preprocess.loc[:, 'B-Entity-Label']), list(rq1_preprocess.loc[:, 'B-ParentTagId'])))
+        rq1_I_tag2idx = dict(zip(list(rq1_preprocess.loc[:, 'I-Entity-Label']), list(rq1_preprocess.loc[:, 'I-ParentTagId'])))
         rq1_tag2idx = rq1_B_tag2idx | rq1_I_tag2idx
-        rq1_idx2tag = {rq1_tag2idx[k]:k for k in rq1_tag2idx}
+        
+        # bhagwat rq1_idx2tag = {rq1_tag2idx[k]:k for k in rq1_tag2idx}
 
-        rq1_tag_changes.loc[:, 'B-Parent-Label'] = rq1_tag_changes.loc[:, 'Parent Label'].apply(lambda l: 'B-'+l)
-        rq1_tag_changes.loc[:, 'I-Parent-Label'] = rq1_tag_changes.loc[:, 'Parent Label'].apply(lambda l: 'I-'+l)
-        B_tag2idx_rq1 = dict(zip(list(rq1_tag_changes.loc[:, 'B-Parent-Label']), list(rq1_tag_changes.loc[:, 'B-ParentTagId'])))
-        I_tag2idx_rq1 = dict(zip(list(rq1_tag_changes.loc[:, 'I-Parent-Label']), list(rq1_tag_changes.loc[:, 'I-ParentTagId'])))
+        ## Bhagwat - Make dictionary for output level 1 tags
+        rq1_parent = pd.read_excel("RQ1_Parent_Hierarchy.xlsx")
+
+        rq1_parent.loc[:, 'B-Parent-Label'] = rq1_parent.loc[:, 'Parent_Label'].apply(lambda l: 'B-'+l)
+        rq1_parent.loc[:, 'I-Parent-Label'] = rq1_parent.loc[:, 'Parent_Label'].apply(lambda l: 'I-'+l)
+        B_tag2idx_rq1 = dict(zip(list(rq1_parent.loc[:, 'B-Parent-Label']), list(rq1_parent.loc[:, 'B_ParentTagId'])))
+        I_tag2idx_rq1 = dict(zip(list(rq1_parent.loc[:, 'I-Parent-Label']), list(rq1_parent.loc[:, 'I_ParentTagId'])))
         tag2idx_rq1 = B_tag2idx_rq1 | I_tag2idx_rq1
-        tag2idx_rq1.update({k: tag2idx[k] for k in tag2idx if k not in rq1_tag2idx})
+        tag2idx_rq1['O'] = 0
+        # bhagwat tag2idx_rq1.update({k: tag2idx[k] for k in tag2idx if k not in rq1_tag2idx})
         idx2tag_rq1 = {tag2idx_rq1[k]:k for k in tag2idx_rq1}
 
-        return tag2idx, idx2tag, tag2idx_rq1, idx2tag_rq1, rq1_tag2idx, rq1_idx2tag
+        return tag2idx, idx2tag, tag2idx_rq1, idx2tag_rq1, rq1_tag2idx
+
 
     def is_numeric_value(self, text):
         digits, non_digits = 0, 0
