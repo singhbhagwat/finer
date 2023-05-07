@@ -22,12 +22,8 @@ from data import DATA_DIR, VECTORS_DIR
 from models import BiLSTM, Transformer, TransformerBiLSTM
 from models.callbacks import ReturnBestEarlyStopping, F1MetricCallback
 
-# Set Seeds for reproducibility
-np.random.seed(1)
-tf.random.set_seed(2)
-
 LOGGER = logging.getLogger(__name__)
-
+LOGGER.setLevel(logging.INFO)
 
 class DataLoader(tf.keras.utils.Sequence):
 
@@ -450,6 +446,10 @@ class FINER:
         return monitor_metric, monitor_mode
 
     def train(self):
+        
+        # Set Seeds for reproducibility
+        np.random.seed(1)
+        tf.random.set_seed(2)
 
         ablation_percent = 0
         train_len_ablated = 0
