@@ -24,11 +24,8 @@ from models.callbacks import ReturnBestEarlyStopping, F1MetricCallback
 
 import pandas as pd
 
-# Set Seeds for reproducibility
-np.random.seed(1)
-tf.random.set_seed(2)
-
 LOGGER = logging.getLogger(__name__)
+LOGGER.setLevel(logging.INFO)
 
 
 class DataLoader(tf.keras.utils.Sequence):
@@ -506,6 +503,10 @@ class FINER:
         return monitor_metric, monitor_mode
 
     def train(self):
+        
+        # Set Seeds for reproducibility
+        np.random.seed(1)
+        tf.random.set_seed(2)
 
         ablation_percent = 0
         train_len_ablated = 0
@@ -718,7 +719,8 @@ class FINER:
 
         y_true_level1, y_true, y_pred_level1, y_pred = [], [], [], []
 
-        for x_batch, [y_batch_level1, y_batch] in tqdm(generator, ncols=100):
+        ## Bhagwat for x_batch, [y_batch_level1, y_batch] in tqdm(generator, ncols=100):
+        for x_batch, [y_batch_level1, y_batch] in generator:
 
             if self.train_params['subword_pooling'] in ['first', 'last']:
                 pooling_mask = x_batch[1]
@@ -806,7 +808,10 @@ class FINER:
             scheme=IOB2
         )
         
+        LOGGER.info('Hierarchy Root - Level1 Predictions...\n')
         LOGGER.info(cr_level1)
+        
+        LOGGER.info('Hierarchy Leaf - Final predictions...\n')
         LOGGER.info(cr)
 
 
