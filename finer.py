@@ -634,8 +634,9 @@ class FINER:
         LOGGER.info('Calculating predictions...')
 
         y_true, y_pred = [], []
-
-        for x_batch, y_batch in tqdm(generator, ncols=100):
+        
+        ## Bhagwat for x_batch, y_batch in tqdm(generator, ncols=100):
+        for x_batch, y_batch in generator:
 
             if self.train_params['subword_pooling'] in ['first', 'last']:
                 pooling_mask = x_batch[1]
