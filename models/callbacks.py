@@ -31,7 +31,8 @@ class F1MetricCallback(Callback):
             self,
             train_params,
             idx2tag,
-            idx2tag_rq1,
+            idx2tag_RQ2_1,
+            idx2tag_RQ2_2,
             train_generator=None,
             validation_generator=None,
             subword_pooling='all',
@@ -49,7 +50,8 @@ class F1MetricCallback(Callback):
         self.idx2tag = idx2tag
         
         ## Bhagwat
-        self.idx2tag_rq1 = idx2tag_rq1
+        self.idx2tag_RQ2_1 = idx2tag_RQ2_1
+        self.idx2tag_RQ2_2 = idx2tag_RQ2_2
 
         self.train_generator = train_generator
         self.validation_generator = validation_generator
@@ -62,6 +64,8 @@ class F1MetricCallback(Callback):
         if self.calculate_train_metric:
             train_micro_precision_level1, train_micro_recall_level1, train_micro_f1_level1, \
             train_macro_precision_level1, train_macro_recall_level1, train_macro_f1_level1, train_support_level1, \
+            train_micro_precision_level2, train_micro_recall_level2, train_micro_f1_level2, \
+            train_macro_precision_level2, train_macro_recall_level2, train_macro_f1_level2, train_support_level2, \
             train_micro_precision, train_micro_recall, train_micro_f1, \
             train_macro_precision, train_macro_recall, train_macro_f1, train_support = \
                 self.evaluate(generator=self.train_generator)
@@ -73,6 +77,14 @@ class F1MetricCallback(Callback):
             logs[f'macro_recall_level1'] = train_macro_recall_level1
             logs[f'macro_f1_level1'] = train_macro_f1_level1
             logs[f'support_level1'] = train_support_level1
+            
+            logs[f'micro_precision_level2'] = train_micro_precision_level2
+            logs[f'micro_recall_level2'] = train_micro_recall_level2
+            logs[f'micro_f1_level2'] = train_micro_f1_level2
+            logs[f'macro_precision_level2'] = train_macro_precision_level2
+            logs[f'macro_recall_level2'] = train_macro_recall_level2
+            logs[f'macro_f1_level2'] = train_macro_f1_level2
+            logs[f'support_level2'] = train_support_level2
 
             logs[f'micro_precision'] = train_micro_precision
             logs[f'micro_recall'] = train_micro_recall
@@ -84,6 +96,8 @@ class F1MetricCallback(Callback):
 
         val_micro_precision_level1, val_micro_recall_level1, val_micro_f1_level1, \
         val_macro_precision_level1, val_macro_recall_level1, val_macro_f1_level1, val_support_level1, \
+        val_micro_precision_level2, val_micro_recall_level2, val_micro_f1_level2, \
+        val_macro_precision_level2, val_macro_recall_level2, val_macro_f1_level2, val_support_level2, \
         val_micro_precision, val_micro_recall, val_micro_f1, \
         val_macro_precision, val_macro_recall, val_macro_f1, val_support = \
             self.evaluate(generator=self.validation_generator)
@@ -96,6 +110,14 @@ class F1MetricCallback(Callback):
         logs[f'val_macro_f1_level1'] = val_macro_f1_level1
         logs[f'val_support_level1'] = val_support_level1
 
+        logs[f'val_micro_precision_level2'] = val_micro_precision_level2
+        logs[f'val_micro_recall_level2'] = val_micro_recall_level2
+        logs[f'val_micro_f1_level2'] = val_micro_f1_level2
+        logs[f'val_macro_precision_level2'] = val_macro_precision_level2
+        logs[f'val_macro_recall_level2'] = val_macro_recall_level2
+        logs[f'val_macro_f1_level2'] = val_macro_f1_level2
+        logs[f'val_support_level2'] = val_support_level2
+
         logs[f'val_micro_precision'] = val_micro_precision
         logs[f'val_micro_recall'] = val_micro_recall
         logs[f'val_micro_f1'] = val_micro_f1
@@ -106,8 +128,8 @@ class F1MetricCallback(Callback):
 
     def evaluate(self, generator):
 
-        y_true_level1, y_true, y_pred_level1, y_pred = [], [], [], []
-        for x_batch, [y_batch_level1, y_batch] in tqdm(generator, ncols=100):
+        y_true_level1, y_true_level2, y_true, y_pred_level1, y_pred_level2, y_pred = [], [], [], [], [], []
+        for x_batch, [y_batch_level1, y_batch_level2, y_batch] in tqdm(generator, ncols=100):
 
             if self.subword_pooling in ['first', 'last']:
                 pooling_mask = x_batch[1]
@@ -115,7 +137,7 @@ class F1MetricCallback(Callback):
                 y_prob_temp = self.model.predict(x=[x_batch, pooling_mask])
             else:
                 pooling_mask = x_batch
-                y_prob_temp_level1, y_prob_temp = self.model.predict(x=x_batch)
+                y_prob_temp_level1, y_prob_temp_level2, y_prob_temp = self.model.predict(x=x_batch)
 
             # Get lengths and cut results for padded tokens
             lengths = [len(np.where(x_i != 0)[0]) for x_i in x_batch]
@@ -125,8 +147,10 @@ class F1MetricCallback(Callback):
             else:
                 y_pred_temp = np.argmax(y_prob_temp, axis=-1)
                 y_pred_temp_level1 = np.argmax(y_prob_temp_level1, axis=-1)
+                y_pred_temp_level2 = np.argmax(y_prob_temp_level2, axis=-1)
 
-            for y_true_i_level1, y_true_i, y_pred_i_level1, y_pred_i, l_i, p_i in zip(y_batch_level1, y_batch, y_pred_temp_level1, y_pred_temp, lengths, pooling_mask):
+            for y_true_i_level1, y_true_i_level2, y_true_i, y_pred_i_level1, y_pred_i_level2, y_pred_i, l_i, p_i \
+                in zip(y_batch_level1, y_batch_level2, y_batch, y_pred_temp_level1, y_pred_temp_level2, y_pred_temp, lengths, pooling_mask):
 
                 if Configuration['task']['model'] == 'transformer':
                     if self.subword_pooling in ['first', 'last']:
@@ -135,8 +159,10 @@ class F1MetricCallback(Callback):
                     else:
                         y_true.append(y_true_i[1:l_i - 1])
                         y_true_level1.append(y_true_i_level1[1:l_i - 1])
+                        y_true_level2.append(y_true_i_level2[1:l_i - 1])
                         y_pred.append(y_pred_i[1:l_i - 1])
                         y_pred_level1.append(y_pred_i_level1[1:l_i - 1])
+                        y_pred_level2.append(y_pred_i_level2[1:l_i - 1])
 
                 elif Configuration['task']['model'] == 'bilstm':
                     if self.subword_pooling in ['first', 'last']:
@@ -181,8 +207,8 @@ class F1MetricCallback(Callback):
         seq_y_true_level1_str = []
 
         for y_pred_level1_row, y_true_level1_row in zip(y_pred_level1, y_true_level1):
-            seq_y_pred_level1_str.append([self.idx2tag_rq1[idx] for idx in y_pred_level1_row.tolist()])
-            seq_y_true_level1_str.append([self.idx2tag_rq1[idx] for idx in y_true_level1_row.tolist()])
+            seq_y_pred_level1_str.append([self.idx2tag_RQ2_1[idx] for idx in y_pred_level1_row.tolist()])
+            seq_y_true_level1_str.append([self.idx2tag_RQ2_1[idx] for idx in y_true_level1_row.tolist()])
 
         flattened_seq_y_pred_level1_str = list(itertools.chain.from_iterable(seq_y_pred_level1_str))
         flattened_seq_y_true_level1_str = list(itertools.chain.from_iterable(seq_y_true_level1_str))
@@ -206,6 +232,38 @@ class F1MetricCallback(Callback):
             zero_division=0
         )
 
+        ## For Task 2 Network
+        seq_y_pred_level2_str = []
+        seq_y_true_level2_str = []
 
-        return precision_micro_level1, recall_micro_level1, f1_micro_level1, precision_macro_level1, recall_macro_level1, f1_macro_level1, support_level1,\
+        for y_pred_level2_row, y_true_level2_row in zip(y_pred_level2, y_true_level2):
+            seq_y_pred_level2_str.append([self.idx2tag_RQ2_2[idx] for idx in y_pred_level2_row.tolist()])
+            seq_y_true_level2_str.append([self.idx2tag_RQ2_2[idx] for idx in y_true_level2_row.tolist()])
+
+        flattened_seq_y_pred_level2_str = list(itertools.chain.from_iterable(seq_y_pred_level2_str))
+        flattened_seq_y_true_level2_str = list(itertools.chain.from_iterable(seq_y_true_level2_str))
+        assert len(flattened_seq_y_true_level2_str) == len(flattened_seq_y_pred_level2_str)
+
+        precision_micro_level2, recall_micro_level2, f1_micro_level2, support_level2 = precision_recall_fscore_support(
+            y_true=[flattened_seq_y_true_level2_str],
+            y_pred=[flattened_seq_y_pred_level2_str],
+            average='micro',
+            warn_for=('f-score',),
+            beta=1,
+            zero_division=0
+        )
+
+        precision_macro_level2, recall_macro_level2, f1_macro_level2, support_level2 = precision_recall_fscore_support(
+            y_true=[flattened_seq_y_true_level2_str],
+            y_pred=[flattened_seq_y_pred_level2_str],
+            average='macro',
+            warn_for=('f-score',),
+            beta=1,
+            zero_division=0
+        )
+
+
+
+        return precision_micro_level1, recall_micro_level1, f1_micro_level1, precision_macro_level1, recall_macro_level1, f1_macro_level1, support_level1, \
+                precision_micro_level2, recall_micro_level2, f1_micro_level2, precision_macro_level2, recall_macro_level2, f1_macro_level2, support_level2, \
                 precision_micro, recall_micro, f1_micro, precision_macro, recall_macro, f1_macro, support
