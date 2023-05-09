@@ -9,8 +9,11 @@ class Transformer(tf.keras.Model):
             self,
             model_name,
             n_classes,
+            
             ## Bhagwat
             n_classes_level1,
+            n_classes_level2,
+
             dropout_rate=0.1,
             crf=False,
             tokenizer=None,
@@ -21,8 +24,9 @@ class Transformer(tf.keras.Model):
         self.model_name = model_name
         self.n_classes = n_classes
         
-        # Level 1 classes
+        # Level 1 & 2 i.e partition 1 and 2 classes
         self.n_classes_level1 = n_classes_level1
+        self.n_classes_level2 = n_classes_level2
 
         self.dropout_rate = dropout_rate
         self.crf = crf
@@ -44,9 +48,15 @@ class Transformer(tf.keras.Model):
             self.crf_layer = CRF(output_dim=n_classes, mask=True)
         else:
             
-            # Level 1 Classifier
+            # Level 1 Classifier - Partition 1
             self.classifier_level1 = tf.keras.layers.Dense(
                 units=n_classes_level1,
+                activation='softmax'
+            )
+
+            # Level 2 Classifier - Partition 2
+            self.classifier_level2 = tf.keras.layers.Dense(
+                units=n_classes_level2,
                 activation='softmax'
             )
 
@@ -71,10 +81,13 @@ class Transformer(tf.keras.Model):
         # Task 1 Network
         outputs_level1 = self.classifier_level1(encodings)
 
-        # Task 2 / Final network
-        inputs_level2 = tf.keras.layers.Concatenate()([encodings, outputs_level1])
+        # Task 2 Network
+        outputs_level2 = self.classifier_level2(encodings)
+
+        # Task 3 / Final network
+        inputs_level3 = tf.keras.layers.Concatenate()([encodings, outputs_level1, outputs_level2])
         ## outputs = self.classifier(encodings) # Bhagwat
-        outputs = self.classifier(inputs_level2)
+        outputs = self.classifier(inputs_level3)
 
         if self.crf:
             outputs = self.crf_layer(outputs, mask=tf.not_equal(inputs, 0))
@@ -82,7 +95,7 @@ class Transformer(tf.keras.Model):
         if self.subword_pooling in ['first', 'last']:
             outputs = tf.cast(tf.expand_dims(pooling_mask, axis=-1), dtype=tf.float32) * outputs
 
-        return outputs_level1, outputs
+        return outputs_level1, outputs_level2, outputs
 
     def print_summary(self, line_length=None, positions=None, print_fn=None):
         # Fake forward pass to build graph
@@ -98,7 +111,8 @@ class Transformer(tf.keras.Model):
 
 
 if __name__ == '__main__':
-    from tensorflow.keras.preprocessing.sequence import pad_sequences
+    # bhagwat from tensorflow.keras.preprocessing.sequence import pad_sequences
+    from keras.utils.data_utils import pad_sequences
 
     # Init random seeds
     np.random.seed(1)
@@ -113,6 +127,7 @@ if __name__ == '__main__':
         n_classes=10,
         # Bhagwat 
         n_classes_level1=5,
+        n_classes_level2=6,
         dropout_rate=0.2,
         crf=False,
         tokenizer=None,
@@ -142,6 +157,7 @@ if __name__ == '__main__':
 
     ## Bhagwat
     outputs_level1 = pad_sequences(np.random.randint(0, 5, (5, 32)), maxlen=64, padding='post', truncating='post')
+    outputs_level2 = pad_sequences(np.random.randint(0, 6, (5, 32)), maxlen=64, padding='post', truncating='post')
 
     outputs = pad_sequences(np.random.randint(0, 10, (5, 32)), maxlen=64, padding='post', truncating='post')
 
@@ -156,14 +172,17 @@ if __name__ == '__main__':
     else:
         model.compile(
             optimizer=optimizer,
-            loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=False),
+            loss=[tf.keras.losses.SparseCategoricalCrossentropy(from_logits=False), \
+                   tf.keras.losses.SparseCategoricalCrossentropy(from_logits=False), \
+                    tf.keras.losses.SparseCategoricalCrossentropy(from_logits=False)],
+            loss_weights=[1/3,1/3,1/3],
             run_eagerly=True
         )
 
     print(model.print_summary(line_length=150))
 
     ## model.fit(x=inputs, y=outputs, batch_size=2) # Bhagwat
-    model.fit(x=inputs, y=[outputs_level1, outputs], batch_size=2)
+    model.fit(x=inputs, y=[outputs_level1, outputs_level2, outputs], batch_size=2)
 
     model.predict(inputs, batch_size=1)
     predictions = model.predict(inputs, batch_size=2)
