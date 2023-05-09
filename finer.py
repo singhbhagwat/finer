@@ -8,12 +8,15 @@ import numpy as np
 import tensorflow as tf
 import wandb
 
+
 from copy import deepcopy
 from tqdm import tqdm
 from gensim.models import KeyedVectors
 from seqeval.metrics import classification_report
 from seqeval.scheme import IOB2
-from tensorflow.keras.preprocessing.sequence import pad_sequences
+#from tensorflow.keras.preprocessing.sequence import pad_sequences
+from keras.utils.data_utils import pad_sequences
+
 from transformers import BertTokenizer, AutoTokenizer
 from wandb.keras import WandbCallback
 
@@ -24,9 +27,9 @@ from models.callbacks import ReturnBestEarlyStopping, F1MetricCallback
 
 import pandas as pd
 
+
 LOGGER = logging.getLogger(__name__)
 LOGGER.setLevel(logging.INFO)
-
 
 class DataLoader(tf.keras.utils.Sequence):
 
@@ -58,8 +61,8 @@ class DataLoader(tf.keras.utils.Sequence):
         # Find list of batch's sequences + targets
         samples = self.dataset[indices]
 
-        x_batch, y_batch_level1, y_batch = self.vectorize_fn(samples=samples, max_length=self.max_length)
-        return x_batch, [y_batch_level1, y_batch]
+        x_batch, y_batch_level1, y_batch_level2, y_batch = self.vectorize_fn(samples=samples, max_length=self.max_length)
+        return x_batch, [y_batch_level1, y_batch_level2, y_batch]
 
     def on_epoch_end(self):
         """Updates indexes after each epoch"""
@@ -75,12 +78,13 @@ class FINER:
         self.eval_params = Configuration['evaluation']
         
         ## Bhagwat
-        self.tag2idx, self.idx2tag, self.tag2idx_rq1, self.idx2tag_rq1, self.rq1_tag2idx = FINER.load_dataset_tags()
+        self.tag2idx, self.idx2tag, self.tag2idx_RQ2_1, self.idx2tag_RQ2_1, self.tag2idx_RQ2_2, self.idx2tag_RQ2_2 = FINER.load_dataset_tags()
         
         self.n_classes = len(self.tag2idx)
 
         ## Bhagwat
-        self.n_classes_level1 = len(self.tag2idx_rq1)
+        self.n_classes_level1 = len(self.tag2idx_RQ2_1)
+        self.n_classes_level2 = len(self.tag2idx_RQ2_2)
 
         if Configuration['task']['mode'] == 'train':
             display_name = Configuration['task']['log_name']
@@ -193,34 +197,33 @@ class FINER:
         tag2idx = {tag: int(i) for i, tag in enumerate(dataset_tags)}
         idx2tag = {idx: tag for tag, idx in tag2idx.items()}
 
-        ## Bhagwat - Overlay hierarchy tags, make dictionay to change existing labels for outpt level 1
-        rq1_preprocess = pd.read_excel("RQ1_Preprocess.xlsx")
-        # bhagwat rq1_tag_changes = rq1_preprocess.loc[rq1_preprocess.ParentLabelSame == 'No', ['Entity Label', 'Parent Label', 'B-ParentTagId', 'I-ParentTagId']]
+        ## Bhagwat - Hierarchy Partition, make dictionay to change existing labels for Task 1 (output level 1)
+        rq2_preprocess1 = pd.read_excel("RQ2_Labels.xlsx", sheet_name= 'Hierarchy_Partition')
+                
+        rq2_preprocess1.loc[:, 'B-Entity-Label'] = rq2_preprocess1.loc[:, 'Entity Label'].apply(lambda l: 'B-'+l)
+        rq2_preprocess1.loc[:, 'I-Entity-Label'] = rq2_preprocess1.loc[:, 'Entity Label'].apply(lambda l: 'I-'+l)
+        rq2_preprocess1.loc[:, 'B-TagId'] = rq2_preprocess1.loc[:, 'B-TagId'].astype(int)
+        rq2_preprocess1.loc[:, 'I-TagId'] = rq2_preprocess1.loc[:, 'I-TagId'].astype(int)
+        B_tag2idx_RQ2_1 = dict(zip(list(rq2_preprocess1.loc[:, 'B-Entity-Label']), list(rq2_preprocess1.loc[:, 'B-TagId'])))
+        I_tag2idx_RQ2_1 = dict(zip(list(rq2_preprocess1.loc[:, 'I-Entity-Label']), list(rq2_preprocess1.loc[:, 'I-TagId'])))
+        tag2idx_RQ2_1 = B_tag2idx_RQ2_1 | I_tag2idx_RQ2_1
+        tag2idx_RQ2_1['O'] = 0
+        idx2tag_RQ2_1 = {tag2idx_RQ2_1[k]:k for k in tag2idx_RQ2_1}        
+
+        ## Bhagwat - Non Hierarchy Partition, make dictionay to change existing labels for Task 2 (Output level 2)
+        rq2_preprocess2 = pd.read_excel("RQ2_Labels.xlsx", sheet_name= 'NonHierarchy_Partition')
         
-        rq1_preprocess.loc[:, 'B-Entity-Label'] = rq1_preprocess.loc[:, 'Entity Label'].apply(lambda l: 'B-'+l)
-        rq1_preprocess.loc[:, 'I-Entity-Label'] = rq1_preprocess.loc[:, 'Entity Label'].apply(lambda l: 'I-'+l)
-        rq1_preprocess.loc[:, 'B-ParentTagId'] = rq1_preprocess.loc[:, 'B-ParentTagId'].astype(int)
-        rq1_preprocess.loc[:, 'I-ParentTagId'] = rq1_preprocess.loc[:, 'I-ParentTagId'].astype(int)
-        rq1_B_tag2idx = dict(zip(list(rq1_preprocess.loc[:, 'B-Entity-Label']), list(rq1_preprocess.loc[:, 'B-ParentTagId'])))
-        rq1_I_tag2idx = dict(zip(list(rq1_preprocess.loc[:, 'I-Entity-Label']), list(rq1_preprocess.loc[:, 'I-ParentTagId'])))
-        rq1_tag2idx = rq1_B_tag2idx | rq1_I_tag2idx
-        
-        # bhagwat rq1_idx2tag = {rq1_tag2idx[k]:k for k in rq1_tag2idx}
+        rq2_preprocess2.loc[:, 'B-Entity-Label'] = rq2_preprocess2.loc[:, 'Entity Label'].apply(lambda l: 'B-'+l)
+        rq2_preprocess2.loc[:, 'I-Entity-Label'] = rq2_preprocess2.loc[:, 'Entity Label'].apply(lambda l: 'I-'+l)
+        rq2_preprocess2.loc[:, 'B-TagId'] = rq2_preprocess2.loc[:, 'B-TagId'].astype(int)
+        rq2_preprocess2.loc[:, 'I-TagId'] = rq2_preprocess2.loc[:, 'I-TagId'].astype(int)
+        B_tag2idx_RQ2_2 = dict(zip(list(rq2_preprocess2.loc[:, 'B-Entity-Label']), list(rq2_preprocess2.loc[:, 'B-TagId'])))
+        I_tag2idx_RQ2_2 = dict(zip(list(rq2_preprocess2.loc[:, 'I-Entity-Label']), list(rq2_preprocess2.loc[:, 'I-TagId'])))
+        tag2idx_RQ2_2 = B_tag2idx_RQ2_2 | I_tag2idx_RQ2_2
+        tag2idx_RQ2_2['O'] = 0
+        idx2tag_RQ2_2 = {tag2idx_RQ2_2[k]:k for k in tag2idx_RQ2_2}        
 
-        ## Bhagwat - Make dictionary for output level 1 tags
-        rq1_parent = pd.read_excel("RQ1_Parent_Hierarchy.xlsx")
-
-        rq1_parent.loc[:, 'B-Parent-Label'] = rq1_parent.loc[:, 'Parent_Label'].apply(lambda l: 'B-'+l)
-        rq1_parent.loc[:, 'I-Parent-Label'] = rq1_parent.loc[:, 'Parent_Label'].apply(lambda l: 'I-'+l)
-        B_tag2idx_rq1 = dict(zip(list(rq1_parent.loc[:, 'B-Parent-Label']), list(rq1_parent.loc[:, 'B_ParentTagId'])))
-        I_tag2idx_rq1 = dict(zip(list(rq1_parent.loc[:, 'I-Parent-Label']), list(rq1_parent.loc[:, 'I_ParentTagId'])))
-        tag2idx_rq1 = B_tag2idx_rq1 | I_tag2idx_rq1
-        tag2idx_rq1['O'] = 0
-        # bhagwat tag2idx_rq1.update({k: tag2idx[k] for k in tag2idx if k not in rq1_tag2idx})
-        idx2tag_rq1 = {tag2idx_rq1[k]:k for k in tag2idx_rq1}
-
-        return tag2idx, idx2tag, tag2idx_rq1, idx2tag_rq1, rq1_tag2idx
-
+        return tag2idx, idx2tag, tag2idx_RQ2_1, idx2tag_RQ2_1, tag2idx_RQ2_2, idx2tag_RQ2_2
 
     def is_numeric_value(self, text):
         digits, non_digits = 0, 0
@@ -413,8 +416,13 @@ class FINER:
         elif Configuration['task']['model'] == 'transformer' \
                 or (Configuration['task']['model'] == 'bilstm' and self.train_params['token_type'] == 'subword'):
 
-            ## Task 1 network changes
-            batch_tags_rq1 = [[self.rq1_tag2idx[tag] if (tag in self.rq1_tag2idx) else self.tag2idx[tag] for tag in sample_tags] for sample_tags in batch_tags]
+            ## Task 1 network tag & index changes
+            batch_tags_RQ2_1 = [[self.tag2idx_RQ2_1[tag] if (tag in self.tag2idx_RQ2_1) else 0 for tag in sample_tags] \
+                                 for sample_tags in batch_tags]
+
+            ## Task 2 network tag & index changes
+            batch_tags_RQ2_2 = [[self.tag2idx_RQ2_2[tag] if (tag in self.tag2idx_RQ2_2) else 0 for tag in sample_tags] \
+                                 for sample_tags in batch_tags]
 
             batch_tags = [[self.tag2idx[tag] for tag in sample_tags] for sample_tags in batch_tags]
 
@@ -428,16 +436,25 @@ class FINER:
 
             # Pad/Truncate the rest tags/labels
             y_level1 = pad_sequences(
-                sequences=batch_tags_rq1,
+                sequences=batch_tags_RQ2_1,
                 maxlen=max_length,
                 padding='post',
                 truncating='post'
             )
 
+            # Pad/Truncate the rest tags/labels
+            y_level2 = pad_sequences(
+                sequences=batch_tags_RQ2_2,
+                maxlen=max_length,
+                padding='post',
+                truncating='post'
+            )
+
+
             if Configuration['task']['model'] == 'transformer':
                 y[np.where(x[:, -1] != PAD_ID)[0], -1] = 0
                 y_level1[np.where(x[:, -1] != PAD_ID)[0], -1] = 0
-
+                y_level2[np.where(x[:, -1] != PAD_ID)[0], -1] = 0
 
         if self.train_params['subword_pooling'] in ['first', 'last']:
             batch_subword_pooling_mask = pad_sequences(
@@ -449,7 +466,7 @@ class FINER:
 
             return [np.array(x), batch_subword_pooling_mask], y
         else:
-            return np.array(x), y_level1, y
+            return np.array(x), y_level1, y_level2, y
 
     def build_model(self, train_params=None):
         if Configuration['task']['model'] == 'bilstm':
@@ -469,6 +486,7 @@ class FINER:
                 
                 ## Bhagwat
                 n_classes_level1 = self.n_classes_level1,
+                n_classes_level2 = self.n_classes_level2,
 
                 dropout_rate=train_params['dropout_rate'],
                 crf=train_params['crf'],
@@ -503,7 +521,7 @@ class FINER:
         return monitor_metric, monitor_mode
 
     def train(self):
-        
+                
         # Set Seeds for reproducibility
         np.random.seed(1)
         tf.random.set_seed(2)
@@ -596,8 +614,10 @@ class FINER:
         else:
             model.compile(
                 optimizer=optimizer,
-                loss=[tf.keras.losses.SparseCategoricalCrossentropy(from_logits=False),tf.keras.losses.SparseCategoricalCrossentropy(from_logits=False)],
-                loss_weights = [0.5,0.5],
+                loss=[tf.keras.losses.SparseCategoricalCrossentropy(from_logits=False), \
+                       tf.keras.losses.SparseCategoricalCrossentropy(from_logits=False), \
+                        tf.keras.losses.SparseCategoricalCrossentropy(from_logits=False)],
+                loss_weights = [1/3,1/3,1/3],
                 run_eagerly=self.general_params['run_eagerly']
             )
 
@@ -609,7 +629,8 @@ class FINER:
         f1_metric = F1MetricCallback(
             train_params=train_params,
             idx2tag=self.idx2tag,
-            idx2tag_rq1=self.idx2tag_rq1,
+            idx2tag_RQ2_1=self.idx2tag_RQ2_1,
+            idx2tag_RQ2_2=self.idx2tag_RQ2_2,
             validation_generator=validation_generator,
             subword_pooling=self.train_params['subword_pooling'],
             calculate_train_metric=False
@@ -717,10 +738,10 @@ class FINER:
         LOGGER.info(f'\n{split_type.capitalize()} Evaluation\n{"-" * 30}\n')
         LOGGER.info('Calculating predictions...')
 
-        y_true_level1, y_true, y_pred_level1, y_pred = [], [], [], []
+        y_true_level1, y_true_level2, y_true, y_pred_level1, y_pred_level2, y_pred = [], [], [], [], [], []
 
-        ## Bhagwat for x_batch, [y_batch_level1, y_batch] in tqdm(generator, ncols=100):
-        for x_batch, [y_batch_level1, y_batch] in generator:
+        # Bhagwat for x_batch, [y_batch_level1, y_batch] in tqdm(generator, ncols=100):
+        for x_batch, [y_batch_level1, y_batch_level2, y_batch] in generator:
 
             if self.train_params['subword_pooling'] in ['first', 'last']:
                 pooling_mask = x_batch[1]
@@ -728,7 +749,7 @@ class FINER:
                 y_prob_temp = model.predict(x=[x_batch, pooling_mask])
             else:
                 pooling_mask = x_batch
-                y_prob_temp_level1, y_prob_temp = model.predict(x=x_batch)
+                y_prob_temp_level1, y_prob_temp_level2, y_prob_temp = model.predict(x=x_batch)
 
             # Get lengths and cut results for padded tokens
             lengths = [len(np.where(x_i != 0)[0]) for x_i in x_batch]
@@ -738,8 +759,10 @@ class FINER:
             else:
                 y_pred_temp = np.argmax(y_prob_temp, axis=-1)
                 y_pred_temp_level1 = np.argmax(y_prob_temp_level1, axis=-1)
+                y_pred_temp_level2 = np.argmax(y_prob_temp_level2, axis=-1)
 
-            for y_true_i_level1, y_true_i, y_pred_i_level1, y_pred_i, l_i, p_i in zip(y_batch_level1, y_batch, y_pred_temp_level1, y_pred_temp, lengths, pooling_mask):
+            for y_true_i_level1, y_true_i_level2, y_true_i, y_pred_i_level1, y_pred_i_level2, y_pred_i, l_i, p_i \
+                in zip(y_batch_level1, y_batch_level2, y_batch, y_pred_temp_level1, y_pred_temp_level2, y_pred_temp, lengths, pooling_mask):
 
                 if Configuration['task']['model'] == 'transformer':
                     if self.train_params['subword_pooling'] in ['first', 'last']:
@@ -748,8 +771,11 @@ class FINER:
                     else:
                         y_true.append(y_true_i[1:l_i - 1])
                         y_true_level1.append(y_true_i_level1[1:l_i - 1])
+                        y_true_level2.append(y_true_i_level2[1:l_i - 1])                        
                         y_pred.append(y_pred_i[1:l_i - 1])
                         y_pred_level1.append(y_pred_i_level1[1:l_i - 1])
+                        y_pred_level2.append(y_pred_i_level2[1:l_i - 1])
+
 
                 elif Configuration['task']['model'] == 'bilstm':
                     if self.train_params['subword_pooling'] in ['first', 'last']:
@@ -781,7 +807,7 @@ class FINER:
             mode=None,
             digits=3,
             scheme=IOB2
-        )
+        )        
 
         ## For Task 1 Network
        
@@ -790,9 +816,9 @@ class FINER:
 
         for y_pred_level1_row, y_true_level1_row in zip(y_pred_level1, y_true_level1):  # For each sequence
             seq_y_pred_level1_str.append(
-                [self.idx2tag_rq1[idx] for idx in y_pred_level1_row.tolist()])  # Append list with sequence tokens
+                [self.idx2tag_RQ1_1[idx] for idx in y_pred_level1_row.tolist()])  # Append list with sequence tokens
             seq_y_true_level1_str.append(
-                [self.idx2tag_rq1[idx] for idx in y_true_level1_row.tolist()])  # Append list with sequence tokens
+                [self.idx2tag_RQ1_1[idx] for idx in y_true_level1_row.tolist()])  # Append list with sequence tokens
 
         flattened_seq_y_pred_level1_str = list(itertools.chain.from_iterable(seq_y_pred_level1_str))
         flattened_seq_y_true_level1_str = list(itertools.chain.from_iterable(seq_y_true_level1_str))
@@ -807,10 +833,38 @@ class FINER:
             digits=3,
             scheme=IOB2
         )
-        
+
+        ## For Task 2 Network
+       
+        seq_y_pred_level2_str = []
+        seq_y_true_level2_str = []        
+
+        for y_pred_level2_row, y_true_level2_row in zip(y_pred_level2, y_true_level2):  # For each sequence
+            seq_y_pred_level2_str.append(
+                [self.idx2tag_RQ2_2[idx] for idx in y_pred_level2_row.tolist()])  # Append list with sequence tokens
+            seq_y_true_level2_str.append(
+                [self.idx2tag_RQ2_2[idx] for idx in y_true_level2_row.tolist()])  # Append list with sequence tokens
+
+        flattened_seq_y_pred_level2_str = list(itertools.chain.from_iterable(seq_y_pred_level2_str))
+        flattened_seq_y_true_level2_str = list(itertools.chain.from_iterable(seq_y_true_level2_str))
+        assert len(flattened_seq_y_true_level2_str) == len(flattened_seq_y_pred_level2_str)
+
+        # TODO: Check mode (strict, not strict) and scheme
+        cr_level2 = classification_report(
+            y_true=[flattened_seq_y_true_level2_str],
+            y_pred=[flattened_seq_y_pred_level2_str],
+            zero_division=0,
+            mode=None,
+            digits=3,
+            scheme=IOB2
+        )
+
         LOGGER.info('Hierarchy Root - Level1 Predictions...\n')
         LOGGER.info(cr_level1)
-        
+
+        LOGGER.info('Hierarchy Root - Level1 Predictions...\n')
+        LOGGER.info(cr_level2)
+
         LOGGER.info('Hierarchy Leaf - Final predictions...\n')
         LOGGER.info(cr)
 
