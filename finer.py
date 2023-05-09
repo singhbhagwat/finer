@@ -14,8 +14,8 @@ from tqdm import tqdm
 from gensim.models import KeyedVectors
 from seqeval.metrics import classification_report
 from seqeval.scheme import IOB2
-#from tensorflow.keras.preprocessing.sequence import pad_sequences
-from keras.utils.data_utils import pad_sequences
+from tensorflow.keras.preprocessing.sequence import pad_sequences
+#from keras.utils.data_utils import pad_sequences
 
 from transformers import BertTokenizer, AutoTokenizer
 from wandb.keras import WandbCallback
