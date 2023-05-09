@@ -111,7 +111,7 @@ class Transformer(tf.keras.Model):
 
 
 if __name__ == '__main__':
-    tensorflow.keras.preprocessing.sequence import pad_sequences
+    from tensorflow.keras.preprocessing.sequence import pad_sequences
     #from keras.utils.data_utils import pad_sequences
 
     # Init random seeds
