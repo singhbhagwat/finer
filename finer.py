@@ -816,9 +816,9 @@ class FINER:
 
         for y_pred_level1_row, y_true_level1_row in zip(y_pred_level1, y_true_level1):  # For each sequence
             seq_y_pred_level1_str.append(
-                [self.idx2tag_RQ1_1[idx] for idx in y_pred_level1_row.tolist()])  # Append list with sequence tokens
+                [self.idx2tag_RQ2_1[idx] for idx in y_pred_level1_row.tolist()])  # Append list with sequence tokens
             seq_y_true_level1_str.append(
-                [self.idx2tag_RQ1_1[idx] for idx in y_true_level1_row.tolist()])  # Append list with sequence tokens
+                [self.idx2tag_RQ2_1[idx] for idx in y_true_level1_row.tolist()])  # Append list with sequence tokens
 
         flattened_seq_y_pred_level1_str = list(itertools.chain.from_iterable(seq_y_pred_level1_str))
         flattened_seq_y_true_level1_str = list(itertools.chain.from_iterable(seq_y_true_level1_str))
